@@ -1357,6 +1357,9 @@ async function handleRequest(request) {
       if (contentType && (contentType.includes("html") || contentType.includes("javascript"))) {
         bd = bd.replaceAll("window.location", "window." + replaceUrlObj);
         bd = bd.replaceAll("document.location", "document." + replaceUrlObj);
+        bd = bd.replaceAll("location.href", replaceUrlObj + ".href");
+        bd = bd.replaceAll("location.replace(", replaceUrlObj + ".replace(");
+        bd = bd.replaceAll("location.assign(", replaceUrlObj + ".assign(");
       }
 
 
