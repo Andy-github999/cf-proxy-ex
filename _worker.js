@@ -1,10 +1,11 @@
-addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-  thisProxyServerUrlHttps = `${url.protocol}//${url.hostname}/`;
-  thisProxyServerUrl_hostOnly = url.host;
-  event.respondWith(handleRequest(event.request))
-})
-
+export default {
+    async fetch(request) {
+        const url = new URL(request.url);
+        thisProxyServerUrlHttps = `${url.protocol}//${url.hostname}/`;
+        thisProxyServerUrl_hostOnly = url.host;
+        return await handleRequest(request);
+    }
+}
 
 const str = "/";
 const lastVisitProxyCookie = "__PROXY_VISITEDSITE__";
