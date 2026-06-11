@@ -500,6 +500,26 @@ function windowLocationInject() {
     console.log("WINDOW LOCATION INJECTED");
 }
 
+function safeFallbackLocationInject() {
+
+    Object.defineProperty(Object.prototype, '${replaceUrlObj}', {
+        get: function () {
+            console.log("*** GET SAFE FALLBACK CALLED ***");
+            // window / document 有 own property，会优先命中各自 getter，不会走到这里
+            return this == null ? undefined : this.location;
+        },
+        set: function (value) {
+            console.log("*** SET SAFE FALLBACK CALLED ***");
+            if (this != null) this.location = value;
+        },
+        configurable: true,
+        enumerable: false   // 不能污染 for-in / Object.keys / JSON.stringify
+    });
+    console.log("OBJECT PROTOTYPE LOCATION FALLBACK INJECTED");
+
+}
+
+
 
 
 
@@ -752,6 +772,7 @@ elementPropertyInject();
 appendChildInject();
 documentLocationInject();
 windowLocationInject();
+safeFallbackLocationInject();
 historyInject();
 
 
