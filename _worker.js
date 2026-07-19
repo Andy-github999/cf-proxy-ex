@@ -1449,6 +1449,24 @@ async function handleRequest(request) {
         bd = bd.replaceAll("location.replace(", replaceUrlObj + ".replace(");
         bd = bd.replaceAll("location.assign(", replaceUrlObj + ".assign(");
       }
+      // 高级替换：仅对 HTML 内容执行（不污染独立 JS 文件）
+      if (contentType && contentType.includes("html")) {
+        bd = bd.replaceAll("top.location", "window." + replaceUrlObj);
+        bd = bd.replaceAll("self.location", "window." + replaceUrlObj);
+        bd = bd.replaceAll("parent.location", "window." + replaceUrlObj);
+        // 处理裸 location = url（无 window.）
+        var protectedLocs = [];
+        var locDeclRegex = /\b(var|let|const|function)\s+(location)\s*=/g;
+        bd = bd.replace(locDeclRegex, function(match) {
+          protectedLocs.push(match);
+          return '___PROTECTED_LOC_DECL_' + (protectedLocs.length - 1) + '___';
+        });
+        bd = bd.replace(/(?<![.\w])location\s*=(?!=)/g, 'window.' + replaceUrlObj + ' =');
+        bd = bd.replace(/(=\s*)location(?!\s*\(|[.\w])/g, '$1window.' + replaceUrlObj);
+        for (var i = 0; i < protectedLocs.length; i++) {
+          bd = bd.replace('___PROTECTED_LOC_DECL_' + i + '___', protectedLocs[i]);
+        }
+      }
 
 
 
@@ -1577,10 +1595,28 @@ async function handleRequest(request) {
       // ***************************************************
 
 
-      modifiedResponse = new Response(bd, response);
+      // 构造响应：排除 content-encoding 等 header（body 已解码，不能保留原始编码头）
+      const safeHeaders = new Headers();
+      const skipHeaders = ['content-encoding', 'content-length', 'transfer-encoding'];
+      for (const [key, value] of response.headers) {
+        if (!skipHeaders.includes(key.toLowerCase())) {
+          safeHeaders.append(key, value);
+        }
+      }
+      modifiedResponse = new Response(bd, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: safeHeaders,
+      });
 
-      // 文档编码
-      modifiedResponse.headers.set("Content-Type", contentType.replace(/charset=([^\s;]+)/i, "charset=utf-8"));
+      // 文档编码（覆盖为 utf-8）
+      let newContentType = contentType;
+      if (newContentType.includes("charset")) {
+        newContentType = newContentType.replace(/charset=([^\s;]+)/i, "charset=utf-8");
+      } else if (newContentType.includes("text/") || newContentType.includes("application/javascript")) {
+        newContentType += "; charset=utf-8";
+      }
+      modifiedResponse.headers.set("Content-Type", newContentType);
     }
 
     // =======================================================================================
