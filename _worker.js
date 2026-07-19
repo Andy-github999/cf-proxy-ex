@@ -1310,7 +1310,7 @@ async function doFetch(url, requestHeaders, method, body) {
   var connectFn = await _getSocketConnect();
   if (connectFn) {
     try {
-      console.log("SOCKET FETCH: " + url);
+      // console.log("SOCKET FETCH: " + url);
       var targetUrl = new URL(url);
       var port = targetUrl.protocol === 'https:' ? 443 : 80;
       var socket = await connectFn(
@@ -1343,10 +1343,10 @@ async function doFetch(url, requestHeaders, method, body) {
 
       return await parseResponse(socket.readable.getReader());
     } catch(e) {
-      console.log("SOCKET FETCH FAILED, fallback to native: " + e.message);
+      // console.log("SOCKET FETCH FAILED, fallback to native: " + e.message);
     }
   }
-  console.log("NATIVE FETCH: " + url);
+  // console.log("NATIVE FETCH: " + url);
   return await fetch(new Request(url, {
     headers: requestHeaders,
     method: method,
@@ -1382,7 +1382,7 @@ async function handleRequest(request) {
   if (password != "") {
     if (siteCookie != null && siteCookie != "") {
       var pwd = getCook(passwordCookieName, siteCookie);
-      console.log(pwd);
+      // console.log(pwd);
       if (pwd != null && pwd != "") {
         if (pwd != password) {
           return handleWrongPwd();
@@ -1434,11 +1434,11 @@ async function handleRequest(request) {
     var lastVisit;
     if (siteCookie != null && siteCookie != "") {
       lastVisit = getCook(lastVisitProxyCookie, siteCookie);
-      console.log(lastVisit);
+      // console.log(lastVisit);
       if (lastVisit != null && lastVisit != "") {
         //(!lastVisit.startsWith("http"))?"https://":"" + 
         //现在的actualUrlStr如果本来不带https:// 的话那么现在也不带，因为判断是否带protocol在后面
-        console.log("REDIRECT: lastVisit redirect to " + thisProxyServerUrlHttps + lastVisit + "/" + actualUrlStr);
+        // console.log("REDIRECT: lastVisit redirect to " + thisProxyServerUrlHttps + lastVisit + "/" + actualUrlStr);
         return getRedirect(thisProxyServerUrlHttps + lastVisit + "/" + actualUrlStr);
       }
     }
@@ -1456,7 +1456,7 @@ async function handleRequest(request) {
 
   //check for upper case: proxy.com/https://ABCabc.dev
   if (actualUrlStr != actualUrl.href) {
-    console.log("REDIRECT: actualUrl redirect to " + thisProxyServerUrlHttps + actualUrl.href);
+    // console.log("REDIRECT: actualUrl redirect to " + thisProxyServerUrlHttps + actualUrl.href);
     return getRedirect(thisProxyServerUrlHttps + actualUrl.href);
   }
 
@@ -1504,7 +1504,7 @@ async function handleRequest(request) {
   var acceptEnc = clientHeaderWithChange.get("accept-encoding");
   if (acceptEnc) {
     clientHeaderWithChange.set("accept-encoding", acceptEnc.replace(/\s*,\s*zstd\s*/g, "").replace(/^\s*zstd\s*,\s*/g, ""));
-    console.log("ACCEPT-ENCODING: stripped zstd, now=" + clientHeaderWithChange.get("accept-encoding"));
+    // console.log("ACCEPT-ENCODING: stripped zstd, now=" + clientHeaderWithChange.get("accept-encoding"));
   }
 
   // =======================================================================================
@@ -1514,40 +1514,40 @@ async function handleRequest(request) {
 
   let clientRequestBodyWithChange
   if (request.body) {
-    console.log("BODY PROCESSING: request.body exists");
+    // console.log("BODY PROCESSING: request.body exists");
     // 先判断它是否是文本类型的 body，如果是文本的 body 再 text，否则（Binary）就不处理
 
     // 克隆请求，因为 body 只能读取一次
     const [body1, body2] = request.body.tee();
-    console.log("BODY PROCESSING: tee() done");
+    // console.log("BODY PROCESSING: tee() done");
     try {
       // 尝试作为文本读取
       const bodyText = await new Response(body1).text();
-      console.log("BODY PROCESSING: text read success, length=" + bodyText.length);
+      // console.log("BODY PROCESSING: text read success, length=" + bodyText.length);
 
       // 检查是否包含需要替换的内容
       const hasProxyUrl = bodyText.includes(thisProxyServerUrlHttps);
       const hasProxyHost = bodyText.includes(thisProxyServerUrl_hostOnly);
-      console.log("BODY PROCESSING: contains proxy url=" + hasProxyUrl + " host=" + hasProxyHost);
+      // console.log("BODY PROCESSING: contains proxy url=" + hasProxyUrl + " host=" + hasProxyHost);
       if (hasProxyUrl || hasProxyHost) {
         // 包含需要替换的内容，进行替换
         clientRequestBodyWithChange = bodyText
           .replaceAll(thisProxyServerUrlHttps, actualUrlStr)
           .replaceAll(thisProxyServerUrl_hostOnly, actualUrl.host);
-        console.log("BODY PROCESSING: replaced text body");
+        // console.log("BODY PROCESSING: replaced text body");
       } else {
         // 不包含需要替换的内容，使用原始 body
         clientRequestBodyWithChange = body2;
-        console.log("BODY PROCESSING: using raw body2 (ReadableStream)");
+        // console.log("BODY PROCESSING: using raw body2 (ReadableStream)");
       }
     } catch (e) {
       // 读取失败，可能是二进制数据
       clientRequestBodyWithChange = body2;
-      console.log("BODY PROCESSING: text read failed, using raw body2. error=" + e.message);
+      // console.log("BODY PROCESSING: text read failed, using raw body2. error=" + e.message);
     }
 
   } else {
-    console.log("BODY PROCESSING: no request.body");
+    // console.log("BODY PROCESSING: no request.body");
   }
 
 
@@ -1559,16 +1559,16 @@ async function handleRequest(request) {
 
 
   const response = await doFetch(actualUrl, clientHeaderWithChange, request.method, (request.body) ? clientRequestBodyWithChange : null);
-  console.log("upstream status: " + response.status + " url: " + actualUrlStr);
+  // console.log("upstream status: " + response.status + " url: " + actualUrlStr);
   if (response.status.toString().startsWith("3") && response.headers.get("Location") != null) {
-    //console.log(base_url + response.headers.get("Location"))
+    // //console.log(base_url + response.headers.get("Location"))
     try {
       var redirectUrl = thisProxyServerUrlHttps + new URL(response.headers.get("Location"), actualUrlStr).href;
-      console.log("REDIRECT: 302 from upstream location=" + response.headers.get("Location") + " redirectUrl=" + redirectUrl);
+      // console.log("REDIRECT: 302 from upstream location=" + response.headers.get("Location") + " redirectUrl=" + redirectUrl);
       return getRedirect(redirectUrl, response, actualUrl);
     } catch {
       var failedLoc = response.headers.get("Location");
-      console.log("REDIRECT_ERROR: failed to parse location=" + failedLoc + " actualUrlStr=" + actualUrlStr);
+      // console.log("REDIRECT_ERROR: failed to parse location=" + failedLoc + " actualUrlStr=" + actualUrlStr);
       return getHTMLResponse(redirectError + "<br>the redirect url:" + failedLoc + ";the url you are now at:" + actualUrlStr);
     }
   }
@@ -1584,7 +1584,7 @@ async function handleRequest(request) {
   var bd;
   var hasProxyHintCook = (getCook(proxyHintCookieName, siteCookie) != "");
   const contentType = response.headers.get("Content-Type");
-  console.log("RESPONSE: url=" + actualUrlStr + " status=" + response.status + " ct=" + contentType + " ce=" + response.headers.get("content-encoding") + " hasBody=" + (!!response.body));
+  // console.log("RESPONSE: url=" + actualUrlStr + " status=" + response.status + " ct=" + contentType + " ce=" + response.headers.get("content-encoding") + " hasBody=" + (!!response.body));
 
 
   var isHTML = false;
@@ -1603,16 +1603,16 @@ async function handleRequest(request) {
     let isTextDetectingKeyword = ["text/", "application/json", "application/javascript"]
     isTextDetectingKeyword.forEach(x => {if(contentType && contentType.includes(x)) isText = true;})
     if (isText) {
-      console.log("TEXT PATH: contentType=" + contentType + " keyword match");
+      // console.log("TEXT PATH: contentType=" + contentType + " keyword match");
       
       const rawBytes = await response.arrayBuffer(); 
       let encoding = 'utf-8';
-      console.log("content type: " + contentType)
+      // console.log("content type: " + contentType)
       if (contentType) {
           let m = contentType.match(/charset=([^\s;]+)/i);
           // [0: "charset=gb2312", 1: "gb2312"]
           if (m){
-            console.log(m);
+            // console.log(m);
             encoding = m[1];
           }else if (contentType.includes("text/html")) {
             // 先读取text，找content="*;\s*charset=gb2312" 
@@ -1621,19 +1621,19 @@ async function handleRequest(request) {
             let metaMatch = preview.match(/charset\s*=\s*["']?\s*([^\s"';>]+)/i);
             if (metaMatch) {
               encoding = metaMatch[1];
-              console.log("Detected charset from meta: " + encoding);
+              // console.log("Detected charset from meta: " + encoding);
             }
           }
       }
-      console.log(encoding);
+      // console.log(encoding);
       try{
         bd = new TextDecoder(encoding).decode(rawBytes);
       }catch(ex){
-        console.log(ex);
+        // console.log(ex);
         bd = new TextDecoder('utf-8').decode(rawBytes);
       }
 
-      console.log(bd);
+      // console.log(bd);
       // bd = await response.text();
       // .text() 会默认用utf-8
       // 如果网站用了gb2312就乱码
@@ -1688,7 +1688,7 @@ async function handleRequest(request) {
       //bd.includes("<html")  //不加>因为html标签上可能加属性         这个方法不好用因为一些JS中竟然也会出现这个字符串
       //也需要加上这个方法因为有时候server返回json也是html
       if (isHTML) {
-        //console.log("STR" + actualUrlStr)
+        // //console.log("STR" + actualUrlStr)
 
         // 这里就可以删除了，全部在客户端进行替换（以后）
         // bd = covToAbs_ServerSide(bd, actualUrlStr);
@@ -1821,7 +1821,7 @@ async function handleRequest(request) {
       } else if (newContentType.includes("text/") || newContentType.includes("application/javascript")) {
         newContentType += "; charset=utf-8";
       }
-      console.log("CONTENT-TYPE: before=" + contentType + " after=" + newContentType);
+      // console.log("CONTENT-TYPE: before=" + contentType + " after=" + newContentType);
       modifiedResponse.headers.set("Content-Type", newContentType);
     }
 
@@ -1829,7 +1829,7 @@ async function handleRequest(request) {
     // *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-* 如果 Body 不是 Text （i.g. Binary） *-*-*-*-*-*-*
     // =======================================================================================
     else {
-      console.log("NOT TEXT PATH: contentType=" + contentType + " for " + actualUrlStr);
+      // console.log("NOT TEXT PATH: contentType=" + contentType + " for " + actualUrlStr);
       modifiedResponse = new Response(response.body, response);
     }
   }
@@ -1838,7 +1838,7 @@ async function handleRequest(request) {
   // *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-* 如果没有 Body *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
   // =======================================================================================
   else {
-    console.log("NO BODY PATH: contentType=" + contentType + " for " + actualUrlStr);
+    // console.log("NO BODY PATH: contentType=" + contentType + " for " + actualUrlStr);
     modifiedResponse = new Response(response.body, response);
   }
 
@@ -2052,11 +2052,11 @@ function covToAbs_ServerSide(body, requestPathNow) {
   return body;
 }
 
-// console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",2));
+// // console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",2));
 // VM195:1 false
-// console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",10));
+// // console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",10));
 // VM207:1 false
-// console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",50));
+// // console.log(isPosEmbed("<script src='https://www.google.com/'>uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu</script>",50));
 // VM222:1 true
 function isPosEmbed(html, pos) {
   if (pos > html.length || pos < 0) return false;
@@ -2132,11 +2132,11 @@ function getRedirect(url, originalResponse, actualUrl) {
       }
     }
     handleCookieHeader(res, false, originalResponse, actualUrl.toString(),actualUrl,true)
-    console.log("REDIRECT: getRedirect sending 302 to " + url);
+    // console.log("REDIRECT: getRedirect sending 302 to " + url);
     res.headers.set("Location", url);
     return res;
   }
-  console.log("REDIRECT: Response.redirect to " + url);
+  // console.log("REDIRECT: Response.redirect to " + url);
   return Response.redirect(url, 301);
 }
 
