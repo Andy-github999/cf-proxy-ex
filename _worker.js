@@ -283,6 +283,9 @@ function appendChildInject() {
 function elementPropertyInject() {
     const originalSetAttribute = HTMLElement.prototype.setAttribute;
     HTMLElement.prototype.setAttribute = function (name, value) {
+        if (name == "integrity") {
+            return; // 丢弃 integrity，避免 SRI 校验（脚本内容已被代理修改）
+        }
         if (name == "src" || name == "href" || name == "action") {
             value = changeURL(value);
         }
