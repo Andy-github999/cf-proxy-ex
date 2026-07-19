@@ -1331,13 +1331,16 @@ async function handleRequest(request) {
 
   let clientRequestBodyWithChange
   if (request.body) {
+    console.log("BODY PROCESSING: request.body exists");
     // 先判断它是否是文本类型的 body，如果是文本的 body 再 text，否则（Binary）就不处理
 
     // 克隆请求，因为 body 只能读取一次
     const [body1, body2] = request.body.tee();
+    console.log("BODY PROCESSING: tee() done");
     try {
       // 尝试作为文本读取
       const bodyText = await new Response(body1).text();
+      console.log("BODY PROCESSING: text read success, length=" + bodyText.length);
 
       // 检查是否包含需要替换的内容
       if (bodyText.includes(thisProxyServerUrlHttps) ||
@@ -1346,15 +1349,20 @@ async function handleRequest(request) {
         clientRequestBodyWithChange = bodyText
           .replaceAll(thisProxyServerUrlHttps, actualUrlStr)
           .replaceAll(thisProxyServerUrl_hostOnly, actualUrl.host);
+        console.log("BODY PROCESSING: replaced text body");
       } else {
         // 不包含需要替换的内容，使用原始 body
         clientRequestBodyWithChange = body2;
+        console.log("BODY PROCESSING: using raw body2 (ReadableStream)");
       }
     } catch (e) {
       // 读取失败，可能是二进制数据
       clientRequestBodyWithChange = body2;
+      console.log("BODY PROCESSING: text read failed, using raw body2. error=" + e.message);
     }
 
+  } else {
+    console.log("BODY PROCESSING: no request.body");
   }
 
 
@@ -1370,7 +1378,8 @@ async function handleRequest(request) {
     method: request.method,
     body: (request.body) ? clientRequestBodyWithChange : request.body,
     //redirect: 'follow'
-    redirect: "manual"
+    redirect: "manual",
+    duplex: "half" // Node.js v18+ 要求：当 body 是 ReadableStream 时必须设置
     //因为有时候会
     //https://www.jyshare.com/front-end/61   重定向到
     //https://www.jyshare.com/front-end/61/
@@ -1409,6 +1418,7 @@ async function handleRequest(request) {
   var bd;
   var hasProxyHintCook = (getCook(proxyHintCookieName, siteCookie) != "");
   const contentType = response.headers.get("Content-Type");
+  console.log("RESPONSE: url=" + actualUrlStr + " status=" + response.status + " ct=" + contentType + " ce=" + response.headers.get("content-encoding") + " hasBody=" + (!!response.body));
 
 
   var isHTML = false;
