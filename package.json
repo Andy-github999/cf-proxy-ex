@@ -1,0 +1,12 @@
+{
+  "name": "cf-proxy-ex",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Proxy EX — VPS deployment",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
