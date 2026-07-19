@@ -1,7 +1,7 @@
 export default {
     async fetch(request) {
         const url = new URL(request.url);
-        thisProxyServerUrlHttps = `${url.protocol}//${url.hostname}/`;
+        thisProxyServerUrlHttps = `${url.protocol}//${url.host}/`;
         thisProxyServerUrl_hostOnly = url.host;
         return await handleRequest(request);
     }
@@ -1799,3 +1799,11 @@ function nthIndex(str, pat, n) {
   }
   return i;
 }
+
+
+// Added for Node.js VPS compatibility
+export function setProxyConfig(httpsUrl, hostOnly) {
+  thisProxyServerUrlHttps = httpsUrl;
+  thisProxyServerUrl_hostOnly = hostOnly;
+}
+export { handleRequest };
