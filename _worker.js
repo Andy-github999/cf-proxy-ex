@@ -1394,7 +1394,7 @@ async function handleRequest(request) {
     try {
       return getRedirect(thisProxyServerUrlHttps + new URL(response.headers.get("Location"), actualUrlStr).href, response, actualUrl);
     } catch {
-      getHTMLResponse(redirectError + "<br>the redirect url:" + response.headers.get("Location") + ";the url you are now at:" + actualUrlStr);
+      return getHTMLResponse(redirectError + "<br>the redirect url:" + response.headers.get("Location") + ";the url you are now at:" + actualUrlStr);
     }
   }
 
@@ -1763,10 +1763,18 @@ function handleCookieHeader(modifiedResponse, isHTML, response, actualUrlStr, ac
   try {
     // Workers 支持 getAll('Set-Cookie')，返回数组
     rawCookies = headers.getAll('Set-Cookie');
-  } catch {
-    // fallback: 如果不支持 getAll
-    const val = headers.get('Set-Cookie');
-    if (val) rawCookies = [val];
+  } catch(e1) {
+    try {
+      // Node.js 20+ 支持 getSetCookie()
+      rawCookies = headers.getSetCookie();
+    } catch(e2) {
+      // fallback: 从 Headers 字符串手动拆分
+      var raw = headers.get('Set-Cookie');
+      if (raw) {
+        // 尝试按逗号分割（可能丢失含逗号的 date）
+        rawCookies = [raw];
+      }
+    }
   }
 
   if (rawCookies.length > 0) {
@@ -1912,7 +1920,37 @@ function getHTMLResponse(html) {
 
 function getRedirect(url, originalResponse, actualUrl) {
   if (originalResponse) {
-    var res = new Response(null, originalResponse);
+    // 手动构建 3xx 响应，避免从 originalResponse 拷贝不需要的头部
+    var res = new Response(null, {
+      status: originalResponse.status,
+      statusText: originalResponse.statusText,
+    });
+    // 只保留必要头部（如 set-cookie）
+    var keepHeaders = ['set-cookie', 'cache-control', 'expires', 'pragma'];
+    // Node.js 20+ 支持 getSetCookie() 返回数组；Workers 用 getAll
+    var setCookies = null;
+    try {
+      setCookies = originalResponse.headers.getAll('Set-Cookie');
+    } catch(e1) {
+      try {
+        setCookies = originalResponse.headers.getSetCookie();
+      } catch(e2) {
+        // fallback: entries 迭代（会合并多个 Set-Cookie）
+      }
+    }
+    for (var [key, value] of originalResponse.headers) {
+      if (keepHeaders.includes(key.toLowerCase())) {
+        if (key.toLowerCase() === 'set-cookie') {
+          if (setCookies) {
+            setCookies.forEach(function(c) { res.headers.append('set-cookie', c); });
+          } else {
+            res.headers.append('set-cookie', value);
+          }
+        } else {
+          res.headers.set(key, value);
+        }
+      }
+    }
     handleCookieHeader(res, false, originalResponse, actualUrl.toString(),actualUrl,true)
     res.headers.set("Location", url);
     return res;
