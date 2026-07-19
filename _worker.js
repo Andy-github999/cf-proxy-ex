@@ -1295,6 +1295,34 @@ async function handleRequest(request) {
     var newValue = newValue.replaceAll(thisProxyServerUrl_hostOnly, actualUrl.host); // 仅替换 host
     clientHeaderWithChange.set(key, newValue);
   });
+  // 去掉 CF-* 等 Cloudflare 特有的 header，避免泄露代理信息给上游
+  var cfHeadersToDelete = [];
+  clientHeaderWithChange.forEach((value, key) => {
+    if (key.toLowerCase().startsWith("cf-")) {
+      cfHeadersToDelete.push(key);
+    }
+  });
+  cfHeadersToDelete.forEach(key => clientHeaderWithChange.delete(key));
+  // 去掉代理自身的 cookie，不转发给上游（避免暴露代理痕迹）
+  var proxyCookies = [passwordCookieName, proxyHintCookieName, lastVisitProxyCookie];
+  var cookie = clientHeaderWithChange.get("cookie");
+  if (cookie) {
+    proxyCookies.forEach(function(c) {
+      var re = new RegExp(c + "=[^;]+(;|$)", "gi");
+      cookie = cookie.replace(re, "");
+    });
+    cookie = cookie.replace(/^;+\s*/, "").replace(/;+\s*;+/g, "; ");
+    if (cookie) {
+      clientHeaderWithChange.set("cookie", cookie);
+    } else {
+      clientHeaderWithChange.delete("cookie");
+    }
+  }
+  // Node.js 不支持 zstd 解压，去掉 accept-encoding 中的 zstd
+  var acceptEnc = clientHeaderWithChange.get("accept-encoding");
+  if (acceptEnc) {
+    clientHeaderWithChange.set("accept-encoding", acceptEnc.replace(/\s*,\s*zstd\s*/g, "").replace(/^\s*zstd\s*,\s*/g, ""));
+  }
 
   // =======================================================================================
   // *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-* 处理客户端发来的 Body *-*-*-*-*-*-*-*-*-*-*-*-*-*
