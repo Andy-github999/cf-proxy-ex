@@ -1204,7 +1204,7 @@ async function handleRequest(request) {
   if (password != "") {
     if (siteCookie != null && siteCookie != "") {
       var pwd = getCook(passwordCookieName, siteCookie);
-      console.log(pwd);
+      // console.log(pwd);
       if (pwd != null && pwd != "") {
         if (pwd != password) {
           return handleWrongPwd();
@@ -1256,7 +1256,7 @@ async function handleRequest(request) {
     var lastVisit;
     if (siteCookie != null && siteCookie != "") {
       lastVisit = getCook(lastVisitProxyCookie, siteCookie);
-      console.log(lastVisit);
+      // console.log(lastVisit);
       if (lastVisit != null && lastVisit != "") {
         //(!lastVisit.startsWith("http"))?"https://":"" + 
         //现在的actualUrlStr如果本来不带https:// 的话那么现在也不带，因为判断是否带protocol在后面
@@ -1360,13 +1360,13 @@ async function handleRequest(request) {
 
 
   const response = await fetch(modifiedRequest);
-  console.log("upstream status: " + response.status + " url: " + actualUrlStr);
+  // console.log("upstream status: " + response.status + " url: " + actualUrlStr);
   if (response.status.toString().startsWith("3") && response.headers.get("Location") != null) {
     //console.log(base_url + response.headers.get("Location"))
     try {
       return getRedirect(thisProxyServerUrlHttps + new URL(response.headers.get("Location"), actualUrlStr).href, response, actualUrl);
     } catch {
-      getHTMLResponse(redirectError + "<br>the redirect url:" + response.headers.get("Location") + ";the url you are now at:" + actualUrlStr);
+      return getHTMLResponse(redirectError + "<br>the redirect url:" + response.headers.get("Location") + ";the url you are now at:" + actualUrlStr);
     }
   }
 
@@ -1402,12 +1402,12 @@ async function handleRequest(request) {
       
       const rawBytes = await response.arrayBuffer(); 
       let encoding = 'utf-8';
-      console.log("content type: " + contentType)
+      // console.log("content type: " + contentType)
       if (contentType) {
           let m = contentType.match(/charset=([^\s;]+)/i);
           // [0: "charset=gb2312", 1: "gb2312"]
           if (m){
-            console.log(m);
+            // console.log(m);
             encoding = m[1];
           }else if (contentType.includes("text/html")) {
             // 先读取text，找content="*;\s*charset=gb2312" 
@@ -1416,19 +1416,19 @@ async function handleRequest(request) {
             let metaMatch = preview.match(/charset\s*=\s*["']?\s*([^\s"';>]+)/i);
             if (metaMatch) {
               encoding = metaMatch[1];
-              console.log("Detected charset from meta: " + encoding);
+              // console.log("Detected charset from meta: " + encoding);
             }
           }
       }
-      console.log(encoding);
+      // console.log(encoding);
       try{
         bd = new TextDecoder(encoding).decode(rawBytes);
       }catch(ex){
-        console.log(ex);
+        // console.log(ex);
         bd = new TextDecoder('utf-8').decode(rawBytes);
       }
 
-      console.log(bd);
+      // console.log(bd);
       // bd = await response.text();
       // .text() 会默认用utf-8
       // 如果网站用了gb2312就乱码
@@ -1735,10 +1735,17 @@ function handleCookieHeader(modifiedResponse, isHTML, response, actualUrlStr, ac
   try {
     // Workers 支持 getAll('Set-Cookie')，返回数组
     rawCookies = headers.getAll('Set-Cookie');
-  } catch {
-    // fallback: 如果不支持 getAll
-    const val = headers.get('Set-Cookie');
-    if (val) rawCookies = [val];
+  } catch(e1) {
+    try {
+      // Node.js 20+ 支持 getSetCookie()
+      rawCookies = headers.getSetCookie();
+    } catch(e2) {
+      // fallback: 从 Headers 字符串手动拆分
+      var raw = headers.get('Set-Cookie');
+      if (raw) {
+        rawCookies = [raw];
+      }
+    }
   }
 
   if (rawCookies.length > 0) {
@@ -1884,7 +1891,37 @@ function getHTMLResponse(html) {
 
 function getRedirect(url, originalResponse, actualUrl) {
   if (originalResponse) {
-    var res = new Response(null, originalResponse);
+    // 手动构建 3xx 响应，避免从 originalResponse 拷贝不需要的头部
+    var res = new Response(null, {
+      status: originalResponse.status,
+      statusText: originalResponse.statusText,
+    });
+    // 只保留必要头部（如 set-cookie）
+    var keepHeaders = ['set-cookie', 'cache-control', 'expires', 'pragma'];
+    // Node.js 20+ 支持 getSetCookie() 返回数组；Workers 用 getAll
+    var setCookies = null;
+    try {
+      setCookies = originalResponse.headers.getAll('Set-Cookie');
+    } catch(e1) {
+      try {
+        setCookies = originalResponse.headers.getSetCookie();
+      } catch(e2) {
+        // fallback: entries 迭代（会合并多个 Set-Cookie）
+      }
+    }
+    for (var [key, value] of originalResponse.headers) {
+      if (keepHeaders.includes(key.toLowerCase())) {
+        if (key.toLowerCase() === 'set-cookie') {
+          if (setCookies) {
+            setCookies.forEach(function(c) { res.headers.append('set-cookie', c); });
+          } else {
+            res.headers.append('set-cookie', value);
+          }
+        } else {
+          res.headers.set(key, value);
+        }
+      }
+    }
     handleCookieHeader(res, false, originalResponse, actualUrl.toString(),actualUrl,true)
     res.headers.set("Location", url);
     return res;
