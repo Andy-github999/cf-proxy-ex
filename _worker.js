@@ -1,12 +1,3 @@
-export default {
-    async fetch(request) {
-        const url = new URL(request.url);
-        thisProxyServerUrlHttps = `${url.protocol}//${url.host}/`;
-        thisProxyServerUrl_hostOnly = url.host;
-        return await handleRequest(request);
-    }
-}
-
 const str = "/";
 const lastVisitProxyCookie = "__PROXY_VISITEDSITE__";
 const passwordCookieName = "__PROXY_PWD__";
