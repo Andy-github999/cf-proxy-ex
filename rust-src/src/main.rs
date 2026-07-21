@@ -9,9 +9,18 @@ use axum::{
 use clap::Parser;
 use encoding_rs::{Encoding, UTF_8};
 use regex::Regex;
-use std::sync::Arc;
 use std::net::SocketAddr;
+use std::sync::{Arc, LazyLock};
 
+// ============================================================================
+// 预编译正则（避免每次请求重复编译）
+// ============================================================================
+static RE_CHARSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)charset=[^\s;]+").unwrap());
+static RE_LOC_DECL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(var|let|const|function)\s+(location)\s*=").unwrap());
+static RE_LOC_EQUALS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"location\s*=").unwrap());
+static RE_EQ_LOCATION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"=\s*location").unwrap());
+static RE_URLS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"https?://[^\s'"]+"#).unwrap());
+static RE_META_CHARSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)charset\s*=\s*["']?\s*([^\s"';>]+)"#).unwrap());
 // ============================================================================
 // CLI 配置（支持环境变量覆盖）
 // ============================================================================
@@ -976,7 +985,7 @@ fn fix_content_type_charset(content_type: &str) -> String {
     let ct_lower = content_type.to_lowercase();
     if ct_lower.contains("charset") {
         // 对齐 JS: replace（仅第一个匹配），不是 replace_all
-        let re = Regex::new(r"(?i)charset=[^\s;]+").unwrap();
+        let re = &RE_CHARSET;
         re.replace(content_type, "charset=utf-8").to_string()
     } else if ct_lower.contains("text/") || ct_lower.contains("application/javascript") {
         format!("{}; charset=utf-8", content_type)
@@ -1082,7 +1091,7 @@ fn rewrite_text(text: &str, replace_url: &str, ct_has_html: bool) -> String {
         }
 
         // 对齐 JS: 保护 var/let/const/function location = 声明
-        let loc_decl_re = Regex::new(r"\b(var|let|const|function)\s+(location)\s*=").unwrap();
+        let loc_decl_re = &RE_LOC_DECL;
         let mut protected_locs: Vec<String> = Vec::new();
         let mut idx = 0;
         s = loc_decl_re.replace_all(&s, |caps: &regex::Captures| {
@@ -1121,7 +1130,7 @@ fn rewrite_text(text: &str, replace_url: &str, ct_has_html: bool) -> String {
 /// 替换裸 `location =` — 对齐 JS /(?<![.\w])location\s*=(?!=)/g
 /// 前面不能是 . 或 word char，后面不能是 =
 fn replace_bare_location_inplace(text: &mut String, replace_url: &str) -> usize {
-    let re = Regex::new(r"location\s*=").unwrap();
+    let re = &RE_LOC_EQUALS;
     let replacement = format!("window.{} =", replace_url);
 
     let mut results: Vec<(usize, usize)> = Vec::new();
@@ -1153,7 +1162,7 @@ fn replace_bare_location_inplace(text: &mut String, replace_url: &str) -> usize 
 /// 替换 `= location` — 对齐 JS /(=\s*)location(?!\s*\(|[.\w])/g
 /// 后面不能是 ( 或 . 或 word char
 fn replace_eq_location_inplace(text: &mut String, replace_url: &str) -> usize {
-    let re = Regex::new(r"=\s*location").unwrap();
+    let re = &RE_EQ_LOCATION;
     let replacement = format!("= window.{}", replace_url);
 
     let mut results: Vec<(usize, usize)> = Vec::new();
@@ -1188,7 +1197,7 @@ fn replace_eq_location_inplace(text: &mut String, replace_url: &str) -> usize {
 /// JS: new RegExp(`(https?:\/\/[^\s'"]+)`, 'g')
 /// 注意：JS 正则不排除 <>，Rust 之前错误地排除了 <>
 fn rewrite_text_urls(text: &str, proxy_prefix: &str) -> String {
-    let re = Regex::new(r#"https?://[^\s'"]+"#).unwrap();
+    let re = &RE_URLS;
 
     re.replace_all(text, |caps: &regex::Captures| {
         let matched = caps.get(0).unwrap().as_str();
@@ -1223,7 +1232,7 @@ fn detect_charset(content_type: &str, body_bytes: &[u8]) -> &'static Encoding {
     if content_type.to_lowercase().contains("text/html") {
         let preview = String::from_utf8_lossy(&body_bytes[..body_bytes.len().min(2048)]);
         // 对齐 JS regex: /charset\s*=\s*["']?\s*([^\s"';>]+)/i
-        let re = Regex::new(r#"(?i)charset\s*=\s*["']?\s*([^\s"';>]+)"#).unwrap();
+        let re = &RE_META_CHARSET;
         if let Some(caps) = re.captures(&preview) {
             let charset = caps.get(1).unwrap().as_str();
             if !charset.is_empty() {
