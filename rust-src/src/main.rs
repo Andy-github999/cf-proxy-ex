@@ -1297,3 +1297,107 @@ fn injection_script(body_bytes: &[u8], has_hint_cookie: bool) -> String {
     }
     s
 }
+
+// ============================================================================
+// lol_html 元素级 URL 重写 — 对齐 JS parseAndInsertDoc → covToAbs
+// 遍历 HTML 中所有 src/href/action 属性，添加代理前缀
+// ============================================================================
+fn rewrite_html_links(html: &str, proxy_url: &str, original_website: &str) -> String {
+    use lol_html::{element, HtmlRewriter, Settings};
+    
+    let mut output = Vec::new();
+    let mut rewriter = HtmlRewriter::new(
+        Settings {
+            element_content_handlers: vec![
+                element!("*[href]", |el| {
+                    if let Some(attr) = el.get_attribute("href") {
+                        if let Some(rewritten) = rewrite_url_for_proxy(&attr, proxy_url, original_website) {
+                            el.set_attribute("href", &rewritten).ok();
+                        }
+                    }
+                    Ok(())
+                }),
+                element!("*[src]", |el| {
+                    if let Some(attr) = el.get_attribute("src") {
+                        if let Some(rewritten) = rewrite_url_for_proxy(&attr, proxy_url, original_website) {
+                            el.set_attribute("src", &rewritten).ok();
+                        }
+                    }
+                    Ok(())
+                }),
+                element!("form[action]", |el| {
+                    if let Some(attr) = el.get_attribute("action") {
+                        if let Some(rewritten) = rewrite_url_for_proxy(&attr, proxy_url, original_website) {
+                            el.set_attribute("action", &rewritten).ok();
+                        }
+                    }
+                    Ok(())
+                }),
+                element!("source[srcset]", |el| {
+                    if let Some(attr) = el.get_attribute("srcset") {
+                        if let Some(rewritten) = rewrite_url_for_proxy(&attr, proxy_url, original_website) {
+                            el.set_attribute("srcset", &rewritten).ok();
+                        }
+                    }
+                    Ok(())
+                }),
+            ],
+            ..Settings::default()
+        },
+        |c: &[u8]| output.extend_from_slice(c),
+    );
+    
+    rewriter.write(html.as_bytes()).ok();
+    rewriter.end().ok();
+    
+    String::from_utf8(output).unwrap_or_else(|_| html.to_string())
+}
+
+/// 辅助：判断 URL 是否需要加代理前缀，返回重写后的 URL
+fn rewrite_url_for_proxy(url: &str, proxy_url: &str, original_website: &str) -> Option<String> {
+    // 跳过 data: mailto: javascript: chrome: edge: 等非代理协议
+    if url.starts_with("data:") || url.starts_with("mailto:") || url.starts_with("javascript:")
+        || url.starts_with("chrome") || url.starts_with("edge")
+    {
+        return None;
+    }
+    
+    // 跳过 blob:（去掉 blob: 前缀后检查）
+    if url.starts_with("blob:") {
+        return None;
+    }
+    
+    // 已经包含代理前缀的跳过
+    if url.starts_with(proxy_url) {
+        return None;
+    }
+    
+    // 如果是相对路径或者不包含在 original_website 中的绝对路径
+    if url.starts_with('/') || url.starts_with("http://") || url.starts_with("https://") {
+        // 对于相对路径或外部 URL，加上代理前缀
+        let path = if url.starts_with('/') {
+            // 相对路径：基于 original_website 解析
+            if original_website.ends_with('/') {
+                // 不需要处理，下面用 URL join
+            }
+            url.to_string()
+        } else if url.starts_with("http://") || url.starts_with("https://") {
+            url.to_string()
+        } else {
+            return None;
+        };
+        
+        // 拼接完整 URL（对齐 JS: new URL(relativePath, original_website_url_str).href）
+        if let Ok(base) = url::Url::parse(original_website) {
+            if let Ok(full) = base.join(&path) {
+                Some(format!("{}{}", proxy_url, full.as_str()))
+            } else {
+                Some(format!("{}{}", proxy_url, path))
+            }
+        } else {
+            Some(format!("{}{}", proxy_url, path))
+        }
+    } else {
+        None
+    }
+}
