@@ -72,6 +72,9 @@ async fn main() {
     let client = reqwest::Client::builder()
         .no_proxy()
         .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .pool_max_idle_per_host(0)
         .build()
         .expect("Failed to build HTTP client");
 
