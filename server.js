@@ -20,7 +20,12 @@ import { setProxyConfig, handleRequest } from './_worker.js';
 // 等效于命令行 --dns-result-order=ipv4first
 import { setDefaultResultOrder } from 'node:dns';
 setDefaultResultOrder('ipv4first');
-
+// ============================================================================
+// 防止未捕获的 Promise 拒绝导致进程退出（Node.js 15+ 默认会终止进程）
+// ============================================================================
+process.on('unhandledRejection', (err) => {
+  console.error('[FATAL] Unhandled rejection:', err?.message || err);
+});
 // ============================================================================
 // 配置
 // ============================================================================
