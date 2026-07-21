@@ -1043,16 +1043,20 @@ fn rewrite_cookie(cookie: &str, proxy_host: &str, target_url: &str) -> String {
         parts.push(format!("Path={}", resolved_path));
     }
 
-    // 2. 处理 Domain — 对齐 JS: domain = thisProxyServerUrl_hostOnly
+    // 2. 处理 Domain — 对齐 JS：仅当存在时才改写
+    //    JS: if (domainIndex !== -1) { parts[domainIndex] = "domain=" + thisProxyServerUrl_hostOnly; }
     let domain_index = parts.iter().position(|p| p.to_lowercase().starts_with("domain="));
     if let Some(idx) = domain_index {
         parts[idx] = format!("domain={}", proxy_host);
-    } else {
-        parts.push(format!("domain={}", proxy_host));
     }
-
-    // 注意：JS 不删除 Secure，所以这里也不删除
-
+    
+    // 3. 删除 Secure — 对齐 JS：代理可能走 HTTP，Secure 会导致浏览器丢弃
+    //    JS 在 handleCookieHeader 中明确删除 Secure 标记
+    parts.retain(|p| {
+        let lower = p.to_lowercase();
+        lower != "secure"
+    });
+    
     parts.join("; ")
 }
 
