@@ -1535,8 +1535,6 @@ async function handleRequest(request) {
           .replaceAll(thisProxyServerUrlHttps, actualUrlStr)
           .replaceAll(thisProxyServerUrl_hostOnly, actualUrl.host);
         // console.log("BODY PROCESSING: replaced text body");
-        // 消耗 body2，防止 tee() 第二个分支泄漏
-        try { const r = body2.getReader(); while (!(await r.read()).done) {} } catch(e) {}
       } else {
         // 不包含需要替换的内容，使用原始 body
         clientRequestBodyWithChange = body2;
@@ -1735,9 +1733,13 @@ async function handleRequest(request) {
 
           // ****************************************************************************
           // it HAVE to be encoded because html will parse the </scri... tag inside script
-          // 使用 Base64 编码原始 body（比字节数字串减少 ~3 倍体积）
-          const originalBodyBase64Encoded = "${btoa(String.fromCharCode(...new TextEncoder().encode(bd)))}";
-          const bytes = Uint8Array.from(atob(originalBodyBase64Encoded), c => c.charCodeAt(0));
+          
+          
+          const originalBodyBase64Encoded = "${new TextEncoder().encode(bd)}";
+
+
+          const bytes = new Uint8Array(originalBodyBase64Encoded.split(',').map(Number));
+
 
 
           // help me debug
