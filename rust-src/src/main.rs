@@ -615,6 +615,13 @@ async fn do_proxy(
         // 5.2 HTML 处理 — 对齐 JS
         //     BOM 移除 → 脚本注入 → BOM 恢复
         // ==================================================================
+        // 元素级 URL 重写（对齐 JS parseAndInsertDoc → covToAbs）
+        if is_html {
+            let before_urls = s.len();
+            s = rewrite_html_links(&s, &proxy_prefix, target);
+            println!("[html_links] rewrite html before={} after={}", before_urls, s.len());
+        }
+        
         if is_html {
             // BOM 处理
             let has_bom = s.starts_with('\u{FEFF}');
