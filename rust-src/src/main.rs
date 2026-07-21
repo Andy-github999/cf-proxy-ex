@@ -74,10 +74,11 @@ async fn main() {
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(10))
-        .pool_max_idle_per_host(0)
+        // 连接池：最多保持 50 个空闲连接，每个 host 最多 10 个，空闲 90 秒后关闭
+        .pool_max_idle_per_host(10)
+        .pool_idle_timeout(std::time::Duration::from_secs(90))
         .build()
         .expect("Failed to build HTTP client");
-
     // 计算固定代理前缀（对齐 Node.js server.js 逻辑）
     let proxy_url = if !args.proxy_url.is_empty() {
         args.proxy_url.clone()
