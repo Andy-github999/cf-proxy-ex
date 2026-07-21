@@ -369,19 +369,21 @@ async fn do_proxy(
     let actual_host = get_url_host_with_port(&actual_url); // "example.com" or "example.com:8080"
 
     // 代理前缀和 host（固定配置优先，否则从请求头动态计算）
-    let proxy_prefix = if !state.proxy_url.is_empty() {
-        state.proxy_url.clone()
+    let dynamic_prefix = get_proxy_prefix(&parts.headers);
+    let dynamic_host = get_proxy_host_only(&parts.headers);
+    let proxy_prefix: &str = if !state.proxy_url.is_empty() {
+        &state.proxy_url
     } else {
-        get_proxy_prefix(&parts.headers)
+        &dynamic_prefix
     };
-    let proxy_host_only = if !state.proxy_host.is_empty() {
-        state.proxy_host.clone()
+    let proxy_host: &str = if !state.proxy_host.is_empty() {
+        &state.proxy_host
     } else {
-        get_proxy_host_only(&parts.headers)
+        &dynamic_host
     };
-    let proxy_prefix_no_slash = proxy_prefix.trim_end_matches('/').to_string();
-    println!("[proxy] proxy_prefix={:?} proxy_host_only={:?} actual_protocol={:?} actual_hostname={:?} actual_host={:?}",
-             proxy_prefix, proxy_host_only, actual_protocol, actual_hostname, actual_host);
+    let proxy_prefix_no_slash = proxy_prefix.trim_end_matches('/');
+    println!("[proxy] proxy_prefix={:?} proxy_host={:?} actual_protocol={:?} actual_hostname={:?} actual_host={:?}",
+             proxy_prefix, proxy_host, actual_protocol, actual_hostname, actual_host);
 
     // ==================================================================
     // 1. 构建上游请求头 — 对齐 JS header 替换逻辑
@@ -418,7 +420,7 @@ async fn do_proxy(
                 // 步骤3: thisProxyServerUrlHttps[no /] → protocol://hostname
                 .replace(&proxy_prefix_no_slash, &replace_target_no_slash)
                 // 步骤4: thisProxyServerUrl_hostOnly → actualUrl.host
-                .replace(&proxy_host_only, &actual_host);
+                .replace(proxy_host, &actual_host);
             if modified != val_str {
                 println!("[req_headers] REPLACE {}: {:?} -> {:?}", lk, val_str, modified);
                 headers.insert(k.clone(), HeaderValue::from_str(&modified)?);
@@ -449,10 +451,10 @@ async fn do_proxy(
     // ==================================================================
     let request_body = if !body_bytes.is_empty() {
         if let Ok(body_text) = String::from_utf8(body_bytes.to_vec()) {
-            if body_text.contains(&proxy_prefix) || body_text.contains(&proxy_host_only) {
+            if body_text.contains(&proxy_prefix) || body_text.contains(proxy_host) {
                 let modified = body_text
                     .replace(&proxy_prefix, target)
-                    .replace(&proxy_host_only, &actual_host);
+                    .replace(proxy_host, &actual_host);
                 println!("[req_body] restored proxy URLs ({} -> {} bytes)", body_bytes.len(), modified.len());
                 modified.into_bytes()
             } else {
@@ -503,7 +505,7 @@ async fn do_proxy(
                     if lk == "location" { continue; }
                     if lk == "set-cookie" {
                         if let Ok(raw) = v.to_str() {
-                            let rewritten = rewrite_cookie(raw, &proxy_host_only, target);
+                            let rewritten = rewrite_cookie(raw, proxy_host, target);
                             resp_builder = resp_builder.header("set-cookie", &rewritten);
                         }
                         continue;
@@ -547,7 +549,7 @@ async fn do_proxy(
         }
         if lk == "set-cookie" {
             if let Ok(raw) = v.to_str() {
-                let rewritten = rewrite_cookie(raw, &proxy_host_only, target);
+                let rewritten = rewrite_cookie(raw, proxy_host, target);
                 resp = resp.header("set-cookie", &rewritten);
             }
             continue;
@@ -648,7 +650,7 @@ async fn do_proxy(
         // ==================================================================
         if is_html && status.as_u16() == 200 {
             let origin = extract_origin(target);
-            let visit_cookie = format!("{}={}; Path=/; Domain={}", state.visit_cookie, origin, proxy_host_only);
+            let visit_cookie = format!("{}={}; Path=/; Domain={}", state.visit_cookie, origin, proxy_host);
             println!("[visit_cookie] set origin={:?} cookie={:?}", origin, visit_cookie);
             resp = resp.header("set-cookie", &visit_cookie);
 
