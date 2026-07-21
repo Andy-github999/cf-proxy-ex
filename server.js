@@ -33,8 +33,12 @@ const PORT = parseInt(process.env.PORT || '8443', 10);
 const PROXY_DOMAIN = process.env.PROXY_DOMAIN || 'localhost';
 const PROXY_PROTOCOL = process.env.PROXY_PROTOCOL || 'https';
 
-const PROXY_URL = `${PROXY_PROTOCOL}://${PROXY_DOMAIN}/`;
-const PROXY_HOST = PROXY_DOMAIN;
+// PROXY_URL / PROXY_HOST 控制外部访问地址（注入客户端的代理前缀）
+// 默认不带端口，适用于标准 80/443 或反向代理（Cloudflare/nginx）
+// 直连 IP:端口 或非标准端口时，通过环境变量覆盖：
+//   PROXY_URL=http://1.2.3.4:8443/  PROXY_HOST=1.2.3.4:8443
+const PROXY_URL = process.env.PROXY_URL || `${PROXY_PROTOCOL}://${PROXY_DOMAIN}/`;
+const PROXY_HOST = process.env.PROXY_HOST || PROXY_DOMAIN;
 
 // 设置全局变量（部署到 VPS 后域名是固定的，只需设置一次）
 setProxyConfig(PROXY_URL, PROXY_HOST);
