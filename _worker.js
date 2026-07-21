@@ -1736,9 +1736,12 @@ async function handleRequest(request) {
           // ****************************************************************************
           // it HAVE to be encoded because html will parse the </scri... tag inside script
           // 使用 Base64 编码原始 body（比字节数字串减少 ~3 倍体积）
-          const originalBodyBase64Encoded = "${btoa(String.fromCharCode(...new TextEncoder().encode(bd)))}";
-          const bytes = Uint8Array.from(atob(originalBodyBase64Encoded), c => c.charCodeAt(0));
+          
+          
+          const originalBodyBase64Encoded = "${new TextEncoder().encode(bd)}";
 
+
+          const bytes = new Uint8Array(originalBodyBase64Encoded.split(',').map(Number));
 
           // help me debug
           console.log(
