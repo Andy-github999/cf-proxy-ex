@@ -1535,6 +1535,8 @@ async function handleRequest(request) {
           .replaceAll(thisProxyServerUrlHttps, actualUrlStr)
           .replaceAll(thisProxyServerUrl_hostOnly, actualUrl.host);
         // console.log("BODY PROCESSING: replaced text body");
+        // 消耗 body2，防止 tee() 第二个分支泄漏
+        try { const r = body2.getReader(); while (!(await r.read()).done) {} } catch(e) {}
       } else {
         // 不包含需要替换的内容，使用原始 body
         clientRequestBodyWithChange = body2;
