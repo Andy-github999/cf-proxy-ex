@@ -1704,6 +1704,10 @@ async function handleRequest(request) {
           hasBom = true;
         }
 
+        // 预计算 base64：UTF-8 编码后逐字节转字符串，再 btoa
+        const bdBase64 = btoa(
+          Array.from(new TextEncoder().encode(bd), b => String.fromCharCode(b)).join('')
+        );
         var inject =
           `
         <!DOCTYPE html>
@@ -1736,9 +1740,8 @@ async function handleRequest(request) {
           // ****************************************************************************
           // it HAVE to be encoded because html will parse the </scri... tag inside script
           // 使用 Base64 编码原始 body（比字节数字串减少 ~3 倍体积）
-          const originalBodyBase64Encoded = "${btoa(String.fromCharCode(...new TextEncoder().encode(bd)))}";
+          const originalBodyBase64Encoded = "${bdBase64}";
           const bytes = Uint8Array.from(atob(originalBodyBase64Encoded), c => c.charCodeAt(0));
-
 
           // help me debug
           console.log(
