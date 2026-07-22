@@ -41,9 +41,8 @@ function ${htmlCovPathInjectFuncName}(htmlString) {
   }
 }
 
-
-
-  const originalBodyBase64Encoded = "__ORIGINAL_BODY_BASE64__";
-  const bytes = new Uint8Array(originalBodyBase64Encoded.split(',').map(Number));
-  parseAndInsertDoc(new TextDecoder().decode(bytes));
+  const originalBodyEncoded = "__ORIGINAL_BODY_BASE64__";
+  const compressed = Uint8Array.from(atob(originalBodyEncoded), c => c.charCodeAt(0));
+  const decoded = pako.inflate(compressed);
+  parseAndInsertDoc(new TextDecoder().decode(decoded));
 })();

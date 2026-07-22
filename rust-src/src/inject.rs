@@ -14,7 +14,16 @@ pub fn inject_scripts(html: &str, _state: &AppState, req_headers: &HeaderMap) ->
 }
 
 fn injection_script(body_bytes: &[u8], has_hint_cookie: bool) -> String {
-    let bytes_str: String = body_bytes.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",");
+    use base64::Engine;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+
+    // gzip 压缩 + base64 编码（客户端用 pako 解压）
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(body_bytes).expect("gzip write");
+    let compressed = encoder.finish().expect("gzip finish");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&compressed);
 
     // 拼接 JS 模块文件（按顺序，在 inject-js/ 目录下）
     let mut s = String::new();
@@ -33,12 +42,13 @@ fn injection_script(body_bytes: &[u8], has_hint_cookie: bool) -> String {
     s.push_str(include_str!("inject-js/10_history.js"));
     s.push_str(include_str!("inject-js/11_observer.js"));
     s.push_str(include_str!("inject-js/12_bootstrap.js"));
+    s.push_str(include_str!("inject-js/13_pako.js"));
     s.push_str(include_str!("inject-js/13_parse_insert.js"));
     s.push_str(include_str!("inject-js/14_footer.js"));
 
     // 模板变量替换
     s = s
-        .replace("__ORIGINAL_BODY_BASE64__", &bytes_str)
+        .replace("__ORIGINAL_BODY_BASE64__", &encoded)
         .replace("${replaceUrlObj}", "__location__yproxy__")
         .replace("${htmlCovPathInjectFuncName}", "parseAndInsertDoc");
 
