@@ -922,6 +922,7 @@ function ${htmlCovPathInjectFuncName}(htmlString) {
   // Re-register hooks after document.close() (仅在顶层窗口执行，不污染 iframe)
   if (window === window.top) {
     formSubmitInject();
+    networkInject();
     loopAndConvertToAbs();
     obsPage();
     covScript();
