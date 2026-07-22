@@ -1251,46 +1251,31 @@ fn rewrite_html_links(html: &str, proxy_url: &str, original_website: &str) -> St
 
 /// 辅助：判断 URL 是否需要加代理前缀，返回重写后的 URL
 fn rewrite_url_for_proxy(url: &str, proxy_url: &str, original_website: &str) -> Option<String> {
-    // 跳过 data: mailto: javascript: chrome: edge: 等非代理协议
+    // 跳过不需要代理的协议
     if url.starts_with("data:") || url.starts_with("mailto:") || url.starts_with("javascript:")
-        || url.starts_with("chrome") || url.starts_with("edge")
+        || url.starts_with("chrome") || url.starts_with("edge") || url.starts_with("blob:")
     {
         return None;
     }
-    
-    // 跳过 blob:（去掉 blob: 前缀后检查）
-    if url.starts_with("blob:") {
-        return None;
-    }
-    
+
     // 已经包含代理前缀的跳过
     if url.starts_with(proxy_url) {
         return None;
     }
-    
-    // 如果是相对路径或者不包含在 original_website 中的绝对路径
-    if url.starts_with('/') || url.starts_with("http://") || url.starts_with("https://") {
-        // 对于相对路径或外部 URL，加上代理前缀
-        let path = if url.starts_with('/') {
-            // 相对路径：基于 original_website 解析
-            url.to_string()
-        } else if url.starts_with("http://") || url.starts_with("https://") {
-            url.to_string()
+
+    // 只处理相对路径或绝对 http(s) URL
+    if !url.starts_with('/') && !url.starts_with("http://") && !url.starts_with("https://") {
+        return None;
+    }
+
+    // 拼接完整 URL（对齐 JS: new URL(relativePath, original_website_url_str).href）
+    if let Ok(base) = url::Url::parse(original_website) {
+        if let Ok(full) = base.join(url) {
+            Some(format!("{}{}", proxy_url, full.as_str()))
         } else {
-            return None;
-        };
-        
-        // 拼接完整 URL（对齐 JS: new URL(relativePath, original_website_url_str).href）
-        if let Ok(base) = url::Url::parse(original_website) {
-            if let Ok(full) = base.join(&path) {
-                Some(format!("{}{}", proxy_url, full.as_str()))
-            } else {
-                Some(format!("{}{}", proxy_url, path))
-            }
-        } else {
-            Some(format!("{}{}", proxy_url, path))
+            Some(format!("{}{}", proxy_url, url))
         }
     } else {
-        None
+        Some(format!("{}{}", proxy_url, url))
     }
 }
