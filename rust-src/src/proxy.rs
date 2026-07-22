@@ -323,8 +323,6 @@ async fn do_proxy(
     let status = up_status;
     let mut resp_builder = Response::builder().status(status);
 
-    let up_body = up.bytes().await?;
-    println!("[body] upstream body len={}", up_body.len());
 
     // ==================================================================
     // 3. 处理 3xx 重定向
@@ -411,6 +409,8 @@ async fn do_proxy(
     };
 
     if is_text {
+        let up_body = up.bytes().await?;
+        println!("[body] upstream body len={}", up_body.len());
         let encoding = detect_charset(&ct, &up_body);
         let (text, _actual_encoding, had_errors) = encoding.decode(&up_body);
         if had_errors {
@@ -492,8 +492,8 @@ async fn do_proxy(
         resp = resp.header("cache-control", "max-age=0");
     }
 
-    println!("[response] returning binary body len={}", up_body.len());
-    Ok(resp.body(Body::from(up_body.to_vec())).unwrap())
+    println!("[response] streaming binary body");
+    Ok(resp.body(Body::from_stream(up.bytes_stream())).unwrap())
 }
 
 /// 计算 24 小时后的 UTC 时间字符串（RFC 1123，用于 hint_cookie expires）
