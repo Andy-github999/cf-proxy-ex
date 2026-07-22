@@ -54,6 +54,14 @@ struct Args {
     /// 代理 Host（覆盖自动构造，如 site2.example.com）
     #[arg(long, default_value = "", env = "PROXY_HOST")]
     proxy_host: String,
+
+    /// TLS 证书文件路径（PEM 格式，如 Cloudflare Origin 证书）
+    #[arg(long, default_value = "origin.crt", env = "ORIGIN_CERT")]
+    origin_cert: String,
+
+    /// TLS 私钥文件路径（PEM 格式）
+    #[arg(long, default_value = "origin.key", env = "ORIGIN_KEY")]
+    origin_key: String,
 }
 
 // ============================================================================
@@ -75,8 +83,20 @@ struct AppState {
 // ============================================================================
 // 主函数
 // ============================================================================
-#[tokio::main]
-async fn main() {
+fn main() {
+    // 手动指定 rustls crypto provider（交叉编译 + musl 下自动检测可能失败）
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto provider");
+
+    tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(async {
+            run().await;
+        });
+}
+
+async fn run() {
     let args = Args::parse();
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -97,7 +117,7 @@ async fn main() {
     } else {
         String::new()  // 空则从请求头动态计算
     };
-    
+
     let proxy_host = if !args.proxy_host.is_empty() {
         args.proxy_host.clone()
     } else if !args.proxy_domain.is_empty() {
@@ -105,12 +125,12 @@ async fn main() {
     } else {
         String::new()
     };
-    
+
     if !proxy_url.is_empty() {
         println!("[config] Proxy URL:  {}", proxy_url);
         println!("[config] Proxy Host: {}", proxy_host);
     }
-    
+
     let state = Arc::new(AppState {
         args: args.clone(),
         client,
@@ -121,24 +141,39 @@ async fn main() {
         proxy_url: proxy_url.clone(),
         proxy_host: proxy_host.clone(),
     });
-    
+
     let app = Router::new()
         .route("/*path", any(handle_request))
         .with_state(state);
-    
+
     let bind_ip: std::net::IpAddr = args.bind.parse().expect("Invalid bind address");
     let addr = SocketAddr::new(bind_ip, args.port);
-    
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("[FATAL] bind {} failed: {}", addr, e);
-            std::process::exit(1);
-        }
-    };
-    println!("[server] Listening on http://{}", addr);
-    
-    axum::serve(listener, app).await.unwrap();
+
+    let use_tls = std::path::Path::new(&args.origin_cert).exists()
+        && std::path::Path::new(&args.origin_key).exists();
+
+    if use_tls {
+        use axum_server::tls_rustls::RustlsConfig;
+        let tls_config = RustlsConfig::from_pem_file(&args.origin_cert, &args.origin_key)
+            .await
+            .expect("Failed to load TLS cert/key");
+        println!("[server] TLS enabled (cert={}, key={})", args.origin_cert, args.origin_key);
+        println!("[server] Listening on https://{}", addr);
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    } else {
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[FATAL] bind {} failed: {}", addr, e);
+                std::process::exit(1);
+            }
+        };
+        println!("[server] Listening on http://{}", addr);
+        axum::serve(listener, app).await.unwrap();
+    }
 }
 
 // ============================================================================
