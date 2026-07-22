@@ -859,14 +859,7 @@ fn get_cookie_value(cookie: &str, name: &str) -> Option<String> {
 }
 
 fn check_pwd(cookie: &str, name: &str, pwd: &str) -> bool {
-    let result = cookie.split(';').any(|part| {
-        let p = part.trim();
-        if let Some((k, v)) = p.split_once('=') {
-            k.trim() == name && v.trim() == pwd
-        } else {
-            false
-        }
-    });
+    let result = get_cookie_value(cookie, name).as_deref() == Some(pwd);
     println!("[check_pwd] result={}", result);
     result
 }
@@ -1419,9 +1412,6 @@ fn rewrite_url_for_proxy(url: &str, proxy_url: &str, original_website: &str) -> 
         // 对于相对路径或外部 URL，加上代理前缀
         let path = if url.starts_with('/') {
             // 相对路径：基于 original_website 解析
-            if original_website.ends_with('/') {
-                // 不需要处理，下面用 URL join
-            }
             url.to_string()
         } else if url.starts_with("http://") || url.starts_with("https://") {
             url.to_string()
