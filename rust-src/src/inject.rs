@@ -14,24 +14,33 @@ pub fn inject_scripts(html: &str, _state: &AppState, req_headers: &HeaderMap) ->
 }
 
 fn injection_script(body_bytes: &[u8], has_hint_cookie: bool) -> String {
-    let tpl = include_str!("inject_template.js");
-    // 对齐 JS: new TextEncoder().encode(bd) → 逗号分隔的字节数组
     let bytes_str: String = body_bytes.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",");
-    let mut s = tpl
-        .replace("__ORIGINAL_BODY_BASE64__", &bytes_str)
-        // 对齐 JS 模板变量: const replaceUrlObj = "__location__yproxy__"
-        .replace("${replaceUrlObj}", "__location__yproxy__")
-        // 对齐 JS 模板变量: const htmlCovPathInjectFuncName = "parseAndInsertDoc"
-        .replace("${htmlCovPathInjectFuncName}", "parseAndInsertDoc");
-    // 对齐 JS: hasProxyHintCook 时不注入提示横幅
-    if has_hint_cookie {
-        if let (Some(start), Some(end)) = (s.find("//__PROXY_HINT_BLOCK_START__"), s.find("//__PROXY_HINT_BLOCK_END__")) {
-            let end_full = end + "//__PROXY_HINT_BLOCK_END__".len();
-            s.replace_range(start..end_full, "");
-            println!("[inject] removed proxy hint block (has __PROXY_HINT__ cookie)");
-        }
-    } else {
-        s = s.replace("//__PROXY_HINT_BLOCK_START__\n", "").replace("//__PROXY_HINT_BLOCK_END__\n", "");
+
+    // 拼接 JS 模块文件（按顺序，在 inject-js/ 目录下）
+    let mut s = String::new();
+    s.push_str(include_str!("inject-js/00_header.js"));
+    if !has_hint_cookie {
+        s.push_str(include_str!("inject-js/01_proxy_hint.js"));
     }
+    s.push_str(include_str!("inject-js/02_init.js"));
+    s.push_str(include_str!("inject-js/03_utils.js"));
+    s.push_str(include_str!("inject-js/04_network.js"));
+    s.push_str(include_str!("inject-js/05_window_open.js"));
+    s.push_str(include_str!("inject-js/06_append_child.js"));
+    s.push_str(include_str!("inject-js/07_element_props.js"));
+    s.push_str(include_str!("inject-js/08_location.js"));
+    s.push_str(include_str!("inject-js/09_form_submit.js"));
+    s.push_str(include_str!("inject-js/10_history.js"));
+    s.push_str(include_str!("inject-js/11_observer.js"));
+    s.push_str(include_str!("inject-js/12_bootstrap.js"));
+    s.push_str(include_str!("inject-js/13_parse_insert.js"));
+    s.push_str(include_str!("inject-js/14_footer.js"));
+
+    // 模板变量替换
+    s = s
+        .replace("__ORIGINAL_BODY_BASE64__", &bytes_str)
+        .replace("${replaceUrlObj}", "__location__yproxy__")
+        .replace("${htmlCovPathInjectFuncName}", "parseAndInsertDoc");
+
     s
 }
