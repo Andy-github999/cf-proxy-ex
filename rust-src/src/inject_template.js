@@ -938,11 +938,7 @@ function replaceContentPaths(content){
   content = content.replaceAll(regex, (match) => {
     if (match.startsWith("http://www.w3.org/") || match.startsWith("https://www.w3.org/")) return match; // w3范式
     
-    if (match.startsWith("http")) {
-      return proxy_host_with_schema + match;
-    } else {
-      return proxy_host + "/" + match;
-    }
+    return proxy_host_with_schema + match;
   });
 
 
