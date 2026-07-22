@@ -733,77 +733,10 @@ async fn do_proxy(
     Ok(resp.body(Body::from(up_body.to_vec())).unwrap())
 }
 
-/// 计算 24 小时后的 UTC 时间字符串（用于 hint_cookie expires）
+/// 计算 24 小时后的 UTC 时间字符串（RFC 1123，用于 hint_cookie expires）
 fn httpdate_helper_24h() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let future = now + 24 * 60 * 60;
-    // 简单格式化 epoch 秒为 HTTP date
-    // 这里用 RFC 1123 格式
-    format_epoch_as_http_date(future)
-}
-
-/// 将 epoch 秒格式化为 HTTP date（RFC 1123）
-fn format_epoch_as_http_date(epoch: u64) -> String {
-    // 简化实现：用 chrono 如果可用，否则手动计算
-    // 这里用简单的天数计算
-    let days = epoch / 86400;
-    let secs_of_day = epoch % 86400;
-    let hour = secs_of_day / 3600;
-    let min = (secs_of_day % 3600) / 60;
-    let sec = secs_of_day % 60;
-
-    // 计算日期（从 1970-01-01 开始）
-    let (year, month, day, weekday) = days_to_date(days);
-
-    let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-    format!("{}, {:02} {} {:04} {:02}:{:02}:{:02} GMT",
-            weekdays[weekday], day, months[month - 1], year, hour, min, sec)
-}
-
-/// 将天数（从 1970-01-01）转换为 (year, month, day, weekday)
-fn days_to_date(days: u64) -> (u64, usize, u64, usize) {
-    // weekday: 1970-01-01 是周四（4）
-    let weekday = ((days + 4) % 7) as usize;
-
-    let mut year = 1970u64;
-    let mut remaining = days;
-
-    loop {
-        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if remaining < days_in_year {
-            break;
-        }
-        remaining -= days_in_year;
-        year += 1;
-    }
-
-    let months_days = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut month = 1usize;
-    let mut day = remaining + 1;
-    for &dim in &months_days {
-        if day <= dim {
-            break;
-        }
-        day -= dim;
-        month += 1;
-    }
-
-    (year, month, day, weekday)
-}
-
-fn is_leap_year(year: u64) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(86400);
+    httpdate::fmt_http_date(future)
 }
 
 // ============================================================================
