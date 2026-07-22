@@ -217,7 +217,7 @@ pub fn detect_charset(content_type: &str, body_bytes: &[u8]) -> &'static Encodin
     // 1. 从 content-type header 提取 — 对齐 JS /charset=([^\s;]+)/i
     if let Some(m) = content_type.to_lowercase().find("charset=") {
         let rest = &content_type[m + 8..];
-        let charset = rest.split(|c: char| c == ';' || c == ' ' || c == '"').next().unwrap_or("").trim();
+        let charset = rest.split([';', ' ', '"']).next().unwrap_or("").trim();
         if !charset.is_empty() {
             if let Some(enc) = Encoding::for_label(charset.as_bytes()) {
                 println!("[charset] detected from header: {} -> {:?}", charset, enc.name());

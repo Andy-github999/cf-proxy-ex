@@ -21,13 +21,11 @@ pub async fn handle_request(
     State(state): State<Arc<AppState>>,
     req: axum::extract::Request,
 ) -> Response<Body> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    let full_path = uri.path_and_query()
+    let full_path = req.uri().path_and_query()
         .map(|pq| pq.as_str())
-        .unwrap_or(uri.path());
+        .unwrap_or(req.uri().path());
 
-    println!("[REQ] {} {} | full_path={:?}", method, uri, full_path);
+    println!("[REQ] {} {} | full_path={:?}", req.method(), req.uri(), full_path);
 
     // ==================================================================
     // 1. Bytespider UA 检查（对齐 JS）
@@ -260,8 +258,8 @@ async fn do_proxy(
         if let Ok(val_str) = v.to_str() {
             let modified = val_str
                 .replace(&format!("{}http", proxy_prefix), "http")
-                .replace(&proxy_prefix, &replace_target_with_slash)
-                .replace(&proxy_prefix_no_slash, &replace_target_no_slash)
+                .replace(proxy_prefix, &replace_target_with_slash)
+                .replace(proxy_prefix_no_slash, &replace_target_no_slash)
                 .replace(proxy_host, &actual_host);
             if modified != val_str {
                 println!("[req_headers] REPLACE {}: {:?} -> {:?}", lk, val_str, modified);
@@ -290,9 +288,9 @@ async fn do_proxy(
     // ==================================================================
     let request_body = if !body_bytes.is_empty() {
         if let Ok(body_text) = String::from_utf8(body_bytes.to_vec()) {
-            if body_text.contains(&proxy_prefix) || body_text.contains(proxy_host) {
+            if body_text.contains(proxy_prefix) || body_text.contains(proxy_host) {
                 let modified = body_text
-                    .replace(&proxy_prefix, target)
+                    .replace(proxy_prefix, target)
                     .replace(proxy_host, &actual_host);
                 println!("[req_body] restored proxy URLs ({} -> {} bytes)", body_bytes.len(), modified.len());
                 modified.into_bytes()
@@ -312,7 +310,7 @@ async fn do_proxy(
     let up_req = state
         .client
         .request(parts.method.clone(), target)
-        .headers(headers.clone())
+        .headers(headers)
         .body(request_body);
     println!("[upstream] sending {} {}", parts.method, target);
     let up = up_req.send().await?;
@@ -432,7 +430,7 @@ async fn do_proxy(
 
         if is_html {
             let before_urls = s.len();
-            s = rewrite_html_links(&s, &proxy_prefix, target);
+            s = rewrite_html_links(&s, proxy_prefix, target);
             println!("[html_links] rewrite html before={} after={}", before_urls, s.len());
         }
 
@@ -444,7 +442,7 @@ async fn do_proxy(
             }
 
             let before_inject = s.len();
-            s = inject_scripts(&s, &state, &parts.headers);
+            s = inject_scripts(&s, state, &parts.headers);
             println!("[inject] html before={} after={}", before_inject, s.len());
 
             if has_bom {
@@ -453,7 +451,7 @@ async fn do_proxy(
             }
         } else if is_text {
             let before_urls = s.len();
-            s = rewrite_text_urls(&s, &proxy_prefix);
+            s = rewrite_text_urls(&s, proxy_prefix);
             println!("[rewrite_urls] text before={} after={}", before_urls, s.len());
         }
 
