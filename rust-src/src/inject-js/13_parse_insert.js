@@ -9,20 +9,7 @@ function ${htmlCovPathInjectFuncName}(htmlString) {
   const allElements = tempDoc.querySelectorAll('*');
 
   allElements.forEach(element => {
-
-
-
-    if (element.tagName === 'SCRIPT') {
-      if (element.textContent && !element.src) {
-          element.textContent = replaceContentPaths(element.textContent);
-      }
-    }
-  
-    if (element.tagName === 'STYLE') {
-      if (element.textContent) {
-          element.textContent = replaceContentPaths(element.textContent);
-      }
-    }
+    covToAbs(element);
   });
 
   
@@ -54,24 +41,6 @@ function ${htmlCovPathInjectFuncName}(htmlString) {
   }
 }
 
-
-
-
-function replaceContentPaths(content){
-  let regex = new RegExp(`(https?:\\/\\/[^\s'"]+)`, 'g');
-  // 这里写四个 \ 是因为 Server side 的文本也会把它当成转义符
-  content = content.replaceAll(regex, (match) => {
-    if (match.startsWith("http://www.w3.org/") || match.startsWith("https://www.w3.org/")) return match; // w3范式
-    
-    return proxy_host_with_schema + match;
-  });
-
-
-
-  return content;
-
-
-}
 
 
   const originalBodyBase64Encoded = "__ORIGINAL_BODY_BASE64__";

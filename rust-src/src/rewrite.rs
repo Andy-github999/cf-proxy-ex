@@ -11,6 +11,10 @@ static RE_LOC_EQUALS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"location\s
 static RE_EQ_LOCATION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"=\s*location").unwrap());
 static RE_URLS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"https?://[^\s'"]+"#).unwrap());
 static RE_META_CHARSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)charset\s*=\s*["']?\s*([^\s"';>]+)"#).unwrap());
+/// 匹配内联 <script>/<style> 内容标签
+static RE_SCRIPT_STYLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?is)(<(?:script|style)\b[^>]*?>)(.*?)(</(?:script|style)\s*>)"#).unwrap()
+});
 
 // ============================================================================
 // 重定向 Location 重写 — 对齐 JS
@@ -306,6 +310,29 @@ pub fn rewrite_html_links(html: &str, proxy_url: &str, original_website: &str) -
 
     String::from_utf8(output).unwrap_or_else(|_| html.to_string())
 }
+
+/// 改写内联 <script>/<style> 文本中的 URL（对齐 JS replaceContentPaths）
+/// 放在 lol_html 之前调用，避免改写已代理的 HTML 属性 URL
+pub fn rewrite_inline_script_urls(html: &str, proxy_prefix: &str) -> String {
+    RE_SCRIPT_STYLE.replace_all(html, |caps: &regex::Captures| {
+        let tag_open = caps.get(1).unwrap().as_str();
+        let content = caps.get(2).unwrap().as_str();
+        let tag_close = caps.get(3).unwrap().as_str();
+
+        // 跳过外部 script（有 src 属性）
+        if tag_open.to_lowercase().contains("<script") && tag_open.contains(" src") {
+            return format!("{}{}{}", tag_open, content, tag_close);
+        }
+
+        let rewritten = rewrite_text_urls(content, proxy_prefix);
+        if rewritten == content {
+            caps.get(0).unwrap().as_str().to_string()
+        } else {
+            format!("{}{}{}", tag_open, rewritten, tag_close)
+        }
+    }).into_owned()
+}
+
 
 /// 辅助：判断 URL 是否需要加代理前缀，返回重写后的 URL
 pub fn rewrite_url_for_proxy(url: &str, proxy_url: &str, original_website: &str) -> Option<String> {

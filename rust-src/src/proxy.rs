@@ -10,7 +10,8 @@ use crate::cookie::{check_pwd, get_cookie_value, rewrite_cookie, strip_cookies};
 use crate::inject::inject_scripts;
 use crate::rewrite::{
     detect_charset, fix_content_type_charset, rewrite_html_links,
-    rewrite_redirect_location, rewrite_text, rewrite_text_urls,
+    rewrite_inline_script_urls, rewrite_redirect_location, rewrite_text,
+    rewrite_text_urls,
 };
 use crate::AppState;
 
@@ -427,7 +428,11 @@ async fn do_proxy(
             s = rewrite_text(&s, &state.replace_url, ct_has_html);
             println!("[rewrite] text before={} after={}", before_rewrite, s.len());
         }
-
+        if is_html {
+            let before_script_urls = s.len();
+            s = rewrite_inline_script_urls(&s, proxy_prefix);
+            println!("[inline_script_urls] before={} after={}", before_script_urls, s.len());
+        }
         if is_html {
             let before_urls = s.len();
             s = rewrite_html_links(&s, proxy_prefix, target);
