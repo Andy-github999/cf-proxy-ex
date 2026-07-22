@@ -291,6 +291,10 @@ pub fn rewrite_html_links(html: &str, proxy_url: &str, original_website: &str) -
                     }
                     Ok(())
                 }),
+                element!("*[integrity]", |el| {
+                    el.remove_attribute("integrity");
+                    Ok(())
+                }),
             ],
             ..Settings::default()
         },

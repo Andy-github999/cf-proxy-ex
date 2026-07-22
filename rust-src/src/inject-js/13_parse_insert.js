@@ -9,8 +9,6 @@ function ${htmlCovPathInjectFuncName}(htmlString) {
   const allElements = tempDoc.querySelectorAll('*');
 
   allElements.forEach(element => {
-    covToAbs(element);
-    removeIntegrityAttributesFromElement(element);
 
 
 

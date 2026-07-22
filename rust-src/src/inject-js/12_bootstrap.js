@@ -33,8 +33,6 @@ window.addEventListener('error', event => {
             console.log("this script has already been injected, ignoring this problematic script...");
             return;
         }
-        // 调用 covToAbs 函数
-        removeIntegrityAttributesFromElement(element);
         covToAbs(element);
 
         // 创建新的 script 元素

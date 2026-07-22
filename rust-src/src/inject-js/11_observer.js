@@ -14,10 +14,8 @@ function obsPage() {
 
 function traverseAndConvert(node) {
     if (node instanceof HTMLElement) {
-        removeIntegrityAttributesFromElement(node);
         covToAbs(node);
         node.querySelectorAll('*').forEach(function (child) {
-            removeIntegrityAttributesFromElement(child);
             covToAbs(child);
         });
     }
@@ -113,15 +111,9 @@ function covToAbs(element) {
 
 }
 
-function removeIntegrityAttributesFromElement(element) {
-    if (element.hasAttribute('integrity')) {
-        element.removeAttribute('integrity');
-    }
-}
 //---***========================================***---Hook观察界面里面要用到的func---***========================================***---
 function loopAndConvertToAbs() {
     for (var ele of document.querySelectorAll('*')) {
-        removeIntegrityAttributesFromElement(ele);
         covToAbs(ele);
     }
     console.log("LOOPED EVERY ELEMENT");
